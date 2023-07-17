@@ -32,24 +32,17 @@ g = Github(auth=auth)
 def body_trimmer(body_text):
     body_dict = {"body_text": body_text, "code": [None], "image_urls": [None]}
 
-    body_text.replace("`", "'")
+    while "'''" in body_text:
+        code_index = body_text.index("'''")
+        code_snippet = body_text[code_index + 1: body_text.find("'''", code_index)]
+        body_dict["code"].append(code_snippet)
+        body_text.replace(code_snippet, "[CODE REPLACE]")
 
-    while ("<!--" in body_text) and ("-->" in body_text):
-        body_text = re.sub('<!--[^>]+-->', '', body_text)
-        body_text = body_text.replace("\n", "").strip()
-    body_text.replace("\n", "")
-
-    # while "'''" in body_text:
-    #     code_index = body_text.index("'''")
-    #     code_snippet = body_text[code_index + 1: body_text.find("'''", code_index)]
-    #     body_dict["code"].append(code_snippet)
-    #     body_text.replace(code_snippet, "[CODE REPLACE]")
-    #
-    # while "![image]" in body_text:
-    #     image_index = body_text.index("![image]")
-    #     image_url = body_text[image_index + 2: body_text.find(")", image_index)]
-    #     body_dict["image_urls"].append(image_url)
-    #     body_text.replace(image_url, "[IMAGE REPLACE]")
+    while "![image]" in body_text:
+        image_index = body_text.index("![image]")
+        image_url = body_text[image_index + 2: body_text.find(")", image_index)]
+        body_dict["image_urls"].append(image_url)
+        body_text.replace(image_url, "[IMAGE REPLACE]")
 
     body_dict["body_text"] = body_text
 
@@ -58,18 +51,18 @@ def body_trimmer(body_text):
 def convert_gh_to_md(text):
     return pypandoc.convert_text(text, "md", format="gfm")  # instead of using markdown_github was given warning to use gfm
 
+headers = {"Authorization": f"Bearer {AUTH_TOKEN}", "X-GitHub-Api-Version": "2022-11-28"}
+
 # gets comments regarding issue, helper function for get_issues
 def get_comments(issue):
     comments_url = issue.comments_url
-    response = requests.get(comments_url)
+    response = requests.get(comments_url, headers=headers)
     json_data = response.json()
-    # print(json_data)
+
     comments = []
     for i in range(len(json_data)):
-        comment_dict = {str(json_data[i].get("user")["login"]): str(json_data[i].get("body"))}
-        comments.append(comment_dict)
-        # i += 1
-
+        comment_tuple = (str(json_data[i].get("user")["login"]), convert_gh_to_md(str(json_data[i].get("body"))))
+        comments.append(comment_tuple)
     return comments
 
 # gets issues from GitHub
@@ -79,10 +72,8 @@ def get_issues(repository):
 
     # stores all issues
     open_issues = repo.get_issues(state="open")
-    # get_comments(open_issues[7])
-    issues_list = []
-    print(open_issues[4].raw_data)
 
+    issues_list = []
     for issue in open_issues:
         if not issue.pull_request:
             if issue.labels:
@@ -183,10 +174,12 @@ def create_word_doc(issue_list, repo_name):
 
         comment_paragraph = document.add_paragraph(style="Normal")
         if issue["comments"]:
+            comment_paragraph = document.add_paragraph(style="Normal")
             for comment in issue["comments"]:
-                comment_paragraph.add_run(str(comment) + ": ")
-                comment_paragraph.add_run(issue["comments"][comment])
-                comment_paragraph.add_run("-" * 30)
+                comment_paragraph.add_run(comment[0] + ": \n").bold = True
+                comment_paragraph.add_run(comment[1] + "\n")
+                comment_paragraph.add_run("-" * 125 + "\n")
+                comment_paragraph.paragraph_format.space_after = Pt(14)
         else:
             comment_paragraph.add_run("No comments at the moment!")
 
