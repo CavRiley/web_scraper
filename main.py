@@ -27,29 +27,72 @@ auth = Auth.Token(AUTH_TOKEN)
 # Public Web GitHub
 g = Github(auth=auth)
 
-
 # strips GitHub issue template, gets rid of newline and return characters, and gets image links
-def body_trimmer(body_text):
-    body_dict = {"body_text": body_text, "code": [None], "image_urls": [None]}
 
-    while "'''" in body_text:
-        code_index = body_text.index("'''")
-        code_snippet = body_text[code_index + 1: body_text.find("'''", code_index)]
-        body_dict["code"].append(code_snippet)
-        body_text.replace(code_snippet, "[CODE REPLACE]")
+def text_trimmer(text):
+    text_dict = {"text": text, "code": [], "image_urls": []}
+    # text.replace(">", "\t")
+    text.replace('\\', "")
 
-    while "![image]" in body_text:
-        image_index = body_text.index("![image]")
-        image_url = body_text[image_index + 2: body_text.find(")", image_index)]
-        body_dict["image_urls"].append(image_url)
-        body_text.replace(image_url, "[IMAGE REPLACE]")
+    while "```" in text:
+        code_index = text.index("```")
+        end_code_index = text.find("```", code_index + 3) + 3
+        if end_code_index > code_index:  # catches case where there is no ending "```" and any other oddity with the end_code_index
+            code_snippet = text[code_index: end_code_index]
+            text_dict["code"].append(code_snippet)
+            text = re.sub(r'```[\s\S]*?```', "[CODE REPLACE]", text, 1)
+            print(f"found {len(text_dict['code'])} code")
+        else:
+            break
 
-    body_dict["body_text"] = body_text
+    while "https://github.com/Project-MONAI/MONAILabel/assets/" in text:
+        print("1 image")
+        start_link_index = text.index("https://github.com/Project-MONAI/MONAILabel/assets/")
+        end_link_index = text.find(")", start_link_index)
+        image_url = text[start_link_index: end_link_index]
+        text_dict["image_urls"].append(image_url)
+        text = re.sub(r'!\[.*?\]\((.*?)\)', "[IMAGE REPLACE]", text, 1)  # check for html tags
+        if len(text_dict['image_urls']) > 2:
+            print("here")
 
-    return body_dict
+        print(f"found {len(text_dict['image_urls'])} images")
+    text_dict["text"] = text
 
-def convert_gh_to_md(text):
-    return pypandoc.convert_text(text, "md", format="gfm")  # instead of using markdown_github was given warning to use gfm
+    return text_dict
+
+def ordering_list(comment_dict):
+    text = comment_dict["text"]
+    code_rp_str = "[CODE REPLACE]"
+    image_rp_str = "[IMAGE REPLACE]"
+    ordered_rp_str = "[ORDERED REPLACE]"
+    ordered_list = []
+    image_num = 0
+    code_num = 0
+    current_index = 0
+    while code_rp_str in text or image_rp_str in text:
+        code_index = text.find(code_rp_str, current_index)
+        image_index = text.find(image_rp_str, current_index)
+
+        if (code_index < image_index and code_index > 0) or (image_index < 0 and code_index > 0):
+            ordered_list.append(comment_dict["code"][code_num])
+            code_num += 1
+            current_index = code_index + len(ordered_rp_str)
+            text = text.replace(code_rp_str, ordered_rp_str, 1)
+        elif (code_index > image_index and image_index > 0) or (image_index > 0 and code_index < 0):
+            ordered_list.append(comment_dict["image_urls"][image_num])
+            image_num += 1
+            current_index = image_index + len(ordered_rp_str)
+            text = text.replace(image_rp_str, ordered_rp_str, 1)
+        else:
+            print("Something went wrong")
+
+    comment_dict["text"] = text
+    comment_dict["ordered_list"] = ordered_list
+
+    return comment_dict
+
+def convert_gh_to_rtf(text):
+    return pypandoc.convert_text(text, "markdown", format="markdown")  # instead of using markdown_github was given warning to use gfm(github flavored markdown)
 
 headers = {"Authorization": f"Bearer {AUTH_TOKEN}", "X-GitHub-Api-Version": "2022-11-28"}
 
@@ -61,7 +104,8 @@ def get_comments(issue):
 
     comments = []
     for i in range(len(json_data)):
-        comment_tuple = (str(json_data[i].get("user")["login"]), convert_gh_to_md(str(json_data[i].get("body"))))
+        comment = text_trimmer(str(json_data[i].get("body")))
+        comment_tuple = (str(json_data[i].get("user")["login"]), convert_gh_to_rtf(comment["text"]))
         comments.append(comment_tuple)
     return comments
 
@@ -72,8 +116,9 @@ def get_issues(repository):
 
     # stores all issues
     open_issues = repo.get_issues(state="open")
-
+    print(open_issues[5].raw_data)
     issues_list = []
+    i = 0
     for issue in open_issues:
         if not issue.pull_request:
             if issue.labels:
@@ -87,12 +132,13 @@ def get_issues(repository):
                 issue_dict["comments"] = get_comments(issue)
 
             if issue_dict["body"]:
-                issue_dict["body"] = convert_gh_to_md(issue_dict["body"])
-                # issue_dict["body"] = issue_dict["body"].rstrip()
-                # body_dictionary = body_trimmer(issue_dict["body"])
-                # issue_dict["body"] = body_dictionary
-                # issue_dict["body"] = issue_dict["body"]["body_text"].replace("`", "'")
+                print(i, issue.url)
+                print("debug:" + issue_dict["body"])
+                body_dict = text_trimmer(issue_dict["body"])
+                body_dict = ordering_list(body_dict)
+                issue_dict["body"] = convert_gh_to_rtf(body_dict["text"])
 
+            i += 1
             issues_list.append(issue_dict)
 
     return issues_list
@@ -100,8 +146,10 @@ def get_issues(repository):
 
 # creates word document
 def create_word_doc(issue_list, repo_name):
+    # create document
     document = docx.Document()
 
+    # creates styles for header, heading and the normal paragraph
     header_style = document.styles['Header']
     header_font = header_style.font
     header_font.size = Pt(18)
@@ -120,12 +168,13 @@ def create_word_doc(issue_list, repo_name):
     main_header.paragraph_format.space_after = Pt(28)  # adds spaces after end of paragraph
     main_header.paragraph_format.space_before = Pt(16)
 
-    front_para = document.add_paragraph("Issues gathered from the github repository regarding " + repo_name[repo_name.index("/") + 1:])
+    front_para = document.add_paragraph(str(len(issue_list)) + " issues gathered from the github repository regarding " + repo_name[repo_name.index("/") + 1:])
     front_para.style = document.styles['Header']
     front_para.alignment = 1
 
     document.add_page_break()
 
+    # creates page heading
     section = document.sections[0]
     heading = section.header
     heading_para = heading.paragraphs[0]
@@ -153,7 +202,24 @@ def create_word_doc(issue_list, repo_name):
         info_paragraph.paragraph_format.space_after = Pt(14)
 
         # the body paragraph contains the body of the issue message
-        body_paragraph = document.add_paragraph(issue["body"], style="Body Text")
+        body_paragraph = document.add_paragraph(style="Body Text")
+        if issue["body"]["image_urls"] or issue["body"]["code"]:
+            while "[CODE REPLACE]" in issue["body"]["text"] or "[IMAGE REPLACE]" in issue["body"]["text"]:
+                code_index = issue["body"]["text"].index("[CODE REPLACE]")
+                image_index = issue["body"]["text"].index("[IMAGE REPLACE]")
+                if code_index < image_index:
+                    body_paragraph.add_run(issue["body"]["text"][:code_index])
+                    body_paragraph.add_run()
+                    # insertion
+
+                    issue["body"]["text"] = issue["body"]["text"][:code_index]
+                else:
+                    body_paragraph.add_run(issue["body"]["text"][:image_index])
+                    # insertion
+                    issue["body"]["text"] = issue["body"]["text"][:image_index]
+
+        else:
+            body_paragraph = document.add_paragraph(issue["body"]["text"], style="Body Text")
         body_paragraph.style = document.styles['Normal']
         body_paragraph.paragraph_format.space_after = Pt(16)
 
@@ -178,7 +244,7 @@ def create_word_doc(issue_list, repo_name):
             for comment in issue["comments"]:
                 comment_paragraph.add_run(comment[0] + ": \n").bold = True
                 comment_paragraph.add_run(comment[1] + "\n")
-                comment_paragraph.add_run("-" * 125 + "\n")
+                comment_paragraph.add_run("-" * 120 + "\n")
                 comment_paragraph.paragraph_format.space_after = Pt(14)
         else:
             comment_paragraph.add_run("No comments at the moment!")
@@ -194,6 +260,6 @@ if __name__ == '__main__':
 
     issues = get_issues(repo_name)
 
-    create_word_doc(issues, repo_name)
+    create_word_doc(issues[:20], repo_name)
 
     print("finished")
