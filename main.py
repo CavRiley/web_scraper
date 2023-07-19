@@ -41,21 +41,24 @@ def text_trimmer(text):
             code_snippet = text[code_index: end_code_index]
             text_dict["code"].append(code_snippet)
             text = re.sub(r'```[\s\S]*?```', "[CODE REPLACE]", text, 1)
-            print(f"found {len(text_dict['code'])} code")
+            # print(f"found {len(text_dict['code'])} code")
         else:
             break
 
     while "https://github.com/Project-MONAI/MONAILabel/assets/" in text:
-        print("1 image")
+        # print("1 image")
         start_link_index = text.index("https://github.com/Project-MONAI/MONAILabel/assets/")
         end_link_index = text.find(")", start_link_index)
         image_url = text[start_link_index: end_link_index]
         text_dict["image_urls"].append(image_url)
-        text = re.sub(r'!\[.*?\]\((.*?)\)', "[IMAGE REPLACE]", text, 1)  # check for html tags
-        if len(text_dict['image_urls']) > 2:
-            print("here")
-
-        print(f"found {len(text_dict['image_urls'])} images")
+        if "![" in text and "](" in text:
+            text = re.sub(r'!\[.*?\]\((.*?)\)', "[IMAGE REPLACE]", text, 1)  # check for html tags
+        elif "<img" in text:
+            text = re.sub(r'<img[^>]+>', "[IMAGE REPLACE]", text, 1)  # check for html tags
+        # if len(text_dict['image_urls']) > 2:
+        #     print("here")
+        #
+        # print(f"found {len(text_dict['image_urls'])} images")
     text_dict["text"] = text
 
     return text_dict
@@ -92,7 +95,7 @@ def ordering_list(comment_dict):
     return comment_dict
 
 def convert_gh_to_rtf(text):
-    return pypandoc.convert_text(text, "markdown", format="markdown")  # instead of using markdown_github was given warning to use gfm(github flavored markdown)
+    return pypandoc.convert_text(text, "markdown", format="gfm")  # instead of using markdown_github was given warning to use gfm(github flavored markdown)
 
 headers = {"Authorization": f"Bearer {AUTH_TOKEN}", "X-GitHub-Api-Version": "2022-11-28"}
 
@@ -116,7 +119,7 @@ def get_issues(repository):
 
     # stores all issues
     open_issues = repo.get_issues(state="open")
-    print(open_issues[5].raw_data)
+
     issues_list = []
     i = 0
     for issue in open_issues:
@@ -132,11 +135,10 @@ def get_issues(repository):
                 issue_dict["comments"] = get_comments(issue)
 
             if issue_dict["body"]:
-                print(i, issue.url)
-                print("debug:" + issue_dict["body"])
                 body_dict = text_trimmer(issue_dict["body"])
                 body_dict = ordering_list(body_dict)
-                issue_dict["body"] = convert_gh_to_rtf(body_dict["text"])
+                body_dict["text"] = convert_gh_to_rtf(body_dict["text"])
+                issue_dict["body"] = body_dict
 
             i += 1
             issues_list.append(issue_dict)
@@ -203,20 +205,25 @@ def create_word_doc(issue_list, repo_name):
 
         # the body paragraph contains the body of the issue message
         body_paragraph = document.add_paragraph(style="Body Text")
-        if issue["body"]["image_urls"] or issue["body"]["code"]:
-            while "[CODE REPLACE]" in issue["body"]["text"] or "[IMAGE REPLACE]" in issue["body"]["text"]:
-                code_index = issue["body"]["text"].index("[CODE REPLACE]")
-                image_index = issue["body"]["text"].index("[IMAGE REPLACE]")
-                if code_index < image_index:
-                    body_paragraph.add_run(issue["body"]["text"][:code_index])
-                    body_paragraph.add_run()
+        body_text = issue["body"]["text"]
+        replace_flag = "[ORDERED REPLACE]"
+        if len(issue["body"]["ordered_list"]):
+            print("Here")
+            for item in issue["body"]["ordered_list"]:
+                replace_index = body_text.index(replace_flag)
+                if item[:2] == "```":
+                    body_paragraph.add_run(body_text[:replace_index] + "\n")
+                    body_text = body_text[replace_index:]
+                    table = document.add_table(rows=1, cols=1)
+                    cell = table.cell(0, 0)
+                    cell.text = item[3:len(item) - 3]
                     # insertion
 
-                    issue["body"]["text"] = issue["body"]["text"][:code_index]
-                else:
-                    body_paragraph.add_run(issue["body"]["text"][:image_index])
-                    # insertion
-                    issue["body"]["text"] = issue["body"]["text"][:image_index]
+                #     issue["body"]["text"] = issue["body"]["text"]
+                # else:
+                #     body_paragraph.add_run(issue["body"]["text"])
+                #     # insertion
+                #     issue["body"]["text"] = issue["body"]["text"]
 
         else:
             body_paragraph = document.add_paragraph(issue["body"]["text"], style="Body Text")
@@ -263,3 +270,5 @@ if __name__ == '__main__':
     create_word_doc(issues[:20], repo_name)
 
     print("finished")
+
+# Check to see if can directly convert body markdown to docx
