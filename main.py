@@ -40,7 +40,7 @@ def text_trimmer(text):
         if end_code_index > code_index:  # catches case where there is no ending "```" and any other oddity with the end_code_index
             code_snippet = text[code_index: end_code_index]
             text_dict["code"].append(code_snippet)
-            text = re.sub(r'```[\s\S]*?```', "[CODE REPLACE]", text, 1)
+            text = re.sub(r'```[\s\S]*?```', "\n [CODE REPLACE] \n", text, 1)
             # print(f"found {len(text_dict['code'])} code")
         else:
             break
@@ -52,9 +52,9 @@ def text_trimmer(text):
         image_url = text[start_link_index: end_link_index]
         text_dict["image_urls"].append(image_url)
         if "![" in text and "](" in text:
-            text = re.sub(r'!\[.*?\]\((.*?)\)', "[IMAGE REPLACE]", text, 1)  # check for html tags
+            text = re.sub(r'!\[.*?\]\((.*?)\)', "\n [IMAGE REPLACE] \n", text, 1)  # check for html tags
         elif "<img" in text:
-            text = re.sub(r'<img[^>]+>', "[IMAGE REPLACE]", text, 1)  # check for html tags
+            text = re.sub(r'<img[^>]+>', "\n [IMAGE REPLACE] \n", text, 1)  # check for html tags
         # if len(text_dict['image_urls']) > 2:
         #     print("here")
         #
@@ -134,11 +134,11 @@ def get_issues(repository):
             if issue.comments != 0:
                 issue_dict["comments"] = get_comments(issue)
 
-            if issue_dict["body"]:
-                body_dict = text_trimmer(issue_dict["body"])
-                body_dict = ordering_list(body_dict)
-                body_dict["text"] = convert_gh_to_rtf(body_dict["text"])
-                issue_dict["body"] = body_dict
+            # if issue_dict["body"]:
+                # body_dict = text_trimmer(issue_dict["body"])
+                # body_dict = ordering_list(body_dict)
+                # body_dict["text"] = convert_gh_to_rtf(body_dict["text"])
+                # issue_dict["body"] = body_dict
 
             i += 1
             issues_list.append(issue_dict)
@@ -205,18 +205,19 @@ def create_word_doc(issue_list, repo_name):
 
         # the body paragraph contains the body of the issue message
         body_paragraph = document.add_paragraph(style="Body Text")
-        body_text = issue["body"]["text"]
-        replace_flag = "[ORDERED REPLACE]"
-        if len(issue["body"]["ordered_list"]):
-            print("Here")
-            for item in issue["body"]["ordered_list"]:
-                replace_index = body_text.index(replace_flag)
-                if item[:2] == "```":
-                    body_paragraph.add_run(body_text[:replace_index] + "\n")
-                    body_text = body_text[replace_index:]
-                    table = document.add_table(rows=1, cols=1)
-                    cell = table.cell(0, 0)
-                    cell.text = item[3:len(item) - 3]
+        body_text = issue["body"]
+        body_paragraph.add_run(body_text)
+        # replace_flag = "[ORDERED REPLACE]"
+        # if len(issue["body"]["ordered_list"]):
+        #     print("Here")
+        #     for item in issue["body"]["ordered_list"]:
+        #         replace_index = body_text.index(replace_flag)
+        #         if item[:2] == "```":
+        #             body_paragraph.add_run(body_text[:replace_index] + "\n")
+        #             body_text = body_text[replace_index:]
+        #             table = document.add_table(rows=1, cols=1)
+        #             cell = table.cell(0, 0)
+        #             cell.text = item[3:len(item) - 3]
                     # insertion
 
                 #     issue["body"]["text"] = issue["body"]["text"]
@@ -224,9 +225,9 @@ def create_word_doc(issue_list, repo_name):
                 #     body_paragraph.add_run(issue["body"]["text"])
                 #     # insertion
                 #     issue["body"]["text"] = issue["body"]["text"]
-
-        else:
-            body_paragraph = document.add_paragraph(issue["body"]["text"], style="Body Text")
+        #
+        # else:
+        #     body_paragraph = document.add_paragraph(issue["body"]["text"], style="Body Text")
         body_paragraph.style = document.styles['Normal']
         body_paragraph.paragraph_format.space_after = Pt(16)
 
