@@ -11,9 +11,7 @@ import pypandoc
 import pandoc
 import re
 import os
-from Markdown2docx import Markdown2docx
-# project = Markdown2docx('README')
-# project.eat_soup()
+from pathlib import Path
 
 # TODO Provide instructions for creating Auth token
 # log into github and go to this page https://github.com/settings/tokens
@@ -97,11 +95,10 @@ def ordering_list(comment_dict):
 
     return comment_dict
 
-def convert_gh_to_rtf(text):
-    with open("markdown_test.md", "w") as file:
-        file.writelines(pypandoc.convert_text(text, "markdown", format="gfm"))
-
-    return pypandoc.convert_text(text, "markdown", format="gfm")  # instead of using markdown_github was given warning to use gfm(github flavored markdown)
+def convert_gh_to_rtf(file_name: Path, output_file: Path):
+    # with open("markdown_test.md", "w") as file:
+    #     file.writelines(pypandoc.convert_text(text, "markdown", format="gfm"))
+    pypandoc.convert_file(file_name.as_posix(), to='docx', outputfile=output_file.as_posix())
 
 headers = {"Authorization": f"Bearer {AUTH_TOKEN}", "X-GitHub-Api-Version": "2022-11-28"}
 
@@ -140,34 +137,38 @@ def get_issues(repository):
             if issue.comments != 0:
                 issue_dict["comments"] = get_comments(issue)
 
-            if issue_dict["body"]:
-                # body_dict = text_trimmer(issue_dict["body"])
-                # body_dict = ordering_list(body_dict)
-                body_dict = issue_dict["body"]
-                body_dict = convert_gh_to_rtf(body_dict)
-                issue_dict["body"] = body_dict
+            # if issue_dict["body"]:
+            #     # body_dict = text_trimmer(issue_dict["body"])
+            #     # body_dict = ordering_list(body_dict)
+            #     # body_dict = issue_dict["body"]
+            #     # # body_dict = convert_gh_to_rtf(body_dict)
+            #     # issue_dict["body"] = body_dict
 
             i += 1
             issues_list.append(issue_dict)
 
     return issues_list
 
-def create_md_doc(issue_list, repo_name):
-    with open("markdown_test.md", "w") as file:
-        for issue in issue_list:
+def create_md_doc(issue_list, output_dir):
+    md_dir = output_dir / "markdown"
+    md_dir.mkdir(parents=True, exist_ok=True)
+    for issue in issue_list:
+        output_name = md_dir / f"issue_{issue['id_num']}.md"
+        with open(output_name, "w") as file:
             file.writelines(pypandoc.convert_text(issue["body"], "markdown", format="gfm"))
 
             file.write("\n# Comments : \n")
             if issue["comments"]:
                 for comment in issue["comments"]:
-                    file.write("\n## " + comment[0] +" :  \n")
+                    file.write("\n### " + comment[0] + " :\n")
                     file.writelines(pypandoc.convert_text(comment[1], "markdown", format="gfm"))
             else:
-                file.write("\n No comments at the moment!  \n")
+                file.write("\nNo comments at the moment!\n")
 
             file.write("<br/>")
             file.write("<br/>")
-            file.write("<br/>")
+            file.write("<br/>\n")
+            file.close()
 
 
 # creates word document
@@ -285,13 +286,28 @@ def create_word_doc(issue_list, repo_name):
 
     document.save("demo_issues.docx")
 
+def convert_md_folder(out_dir: Path):
+    word_dir = out_dir / "docx"
+    md_dir = out_dir / "markdown"
+    word_dir.mkdir(parents=True, exist_ok=True)
+    for file in md_dir.glob("*.md"):
+        assert file.is_file()
+        out_file_name = word_dir / f"{file.stem}.docx"
+        convert_gh_to_rtf(file, out_file_name)
+
+
+
 
 if __name__ == '__main__':
     pypandoc.download_pandoc()
-    repo_name = "InsightSoftwareConsortium/ITK"
+    repo_name = "Project-MONAI/MONAILabel"
 
     issues = get_issues(repo_name)
-    create_md_doc(issues[:10], repo_name)
+
+    out_dir = Path(repo_name + "_issues")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    create_md_doc(issues[:10], out_dir)
     pypandoc.convert_file("markdown_test.md", to='docx', outputfile="test.docx")
 
     # create_word_doc(issues[:20], repo_name)
