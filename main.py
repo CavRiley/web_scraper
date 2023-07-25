@@ -1,7 +1,5 @@
 import shutil
-
 import docx.text.font
-
 from github import Github
 import docx
 from docx.shared import Pt, Inches
@@ -129,19 +127,6 @@ def create_md_doc(issue_list, output_dir):
         output_name = md_dir / f"issue_{issue['id_num']}.md"
 
         with open(output_name, "w") as file:
-            # file.write(f"<center>**{issue['title']}**</center>\n")
-            #
-            # file.write(
-            #     "*Issue No. "
-            #     + str(issue["id_num"])
-            #     + " opened by "
-            #     + str(issue["user"])
-            #     + " on "
-            #     + str(issue["published"])
-            #     + "    Type: "
-            #     + str(issue["labels"])[5:]
-            #     + "*\n\n"
-            # )
             file.write("\n### Issue:\n")
             file.writelines(
                 pypandoc.convert_text(issue["body"], "markdown", format="gfm")
@@ -191,29 +176,30 @@ def format_word_doc(file_name, issue):
     heading = section.header
     # heading_para = heading.paragraphs[0]
 
-    table = heading.add_table(rows=2, cols=3, width=Inches(7))
-
-    table.autofit = False
-    table.allow_autofit = False
-
-    logo_cell = table.rows[0].cells[2]
-    logo_cell.width = Inches(1.0)
-    paragraph = logo_cell.paragraphs[0]
-    logo = paragraph.add_run()
-    logo.add_picture("BotImageLogo.png", width=Inches(1))  # Image can be changed here
-    paragraph.alignment = 1
-
+    table = heading.add_table(rows=2, cols=3, width=Inches(7.5))
+    table.alignment = 1
+    table.autofit = True
+    table.allow_autofit = True
+    # table.rows[0].width = Inches(1.0)
+    table.columns[2].width = Inches(1.5)
     title_cell = table.rows[0].cells[0]
     title_para = title_cell.paragraphs[0]
     title_para.add_run(
-        f"Issue No. {issue['id_num']} in The {repo_name[repo_name.index('/') + 1:]} Repository"
+        f"\n\nIssue No. {issue['id_num']} in The {repo_name[repo_name.index('/') + 1:]} Repository"
     ).bold = True
     title_para.alignment = 1
 
     issue_cell = table.rows[0].cells[1]
     issue_para = issue_cell.paragraphs[0]
-    issue_para.add_run(issue["title"]).bold = True
+    issue_para.add_run("\n" + issue["title"]).bold = True
     issue_para.alignment = 1
+
+    logo_cell = table.rows[0].cells[2]
+    # logo_cell.width = Inches(1.5)
+    paragraph = logo_cell.paragraphs[0]
+    logo = paragraph.add_run()
+    logo.add_picture("BotImageLogo.png", width=Inches(1))  # Image can be changed here
+    paragraph.alignment = 1
 
     date_cell = table.rows[1].cells[0]
     date_para = date_cell.paragraphs[0]
@@ -228,6 +214,7 @@ def format_word_doc(file_name, issue):
     user_para.alignment = 1
 
     type_cell = table.rows[1].cells[2]
+    # type_cell.width = Inches(1.5)
     type_para = type_cell.paragraphs[0]
     type_para.add_run("Type: ").bold = True
     type_para.add_run(str(issue["labels"])).bold = False
@@ -244,6 +231,7 @@ def validate_state(state_str: str):
         return valid_states[0]  # defaults to all
 
 
+#  Function used when gathering issues from a repository for the first time
 def initialize_repo(repo_name):
     state = "open"
     state = validate_state(state)
@@ -265,6 +253,7 @@ def initialize_repo(repo_name):
     f.close()
 
 
+#  Function used when issues in the repository have already been gathered
 def update_repo(repo_name):
     state = "all"
     state = validate_state(state)
@@ -273,15 +262,18 @@ def update_repo(repo_name):
     f = open(repo_name + "_time_logs.csv", "r+")
     previous_date = datetime.strptime(
         f.readlines()[-1].strip(), "%Y-%m-%d %H:%M:%S.%f"
-    )  # the strip method is needed to stop a value error
+    )  #  the strip method is needed to stop a value error
 
-    # gets issues from github: state can be "open", "closed" or "all" ... updated is the date this programs last ran
+    #  gets issues from GitHub: state can be "open", "closed" or "all" ... updated parameter will give us the
+    #  issues that have been updated since the date passed to the function(usually the last date this program was ran)
     issues = get_issues(repo_name, state=state, updated=previous_date)
 
     out_dir = Path(repo_name + "_issues")
 
     create_md_doc(issues[:10], out_dir)
     convert_md_folder(out_dir)
+
+    f.write(str(datetime.now()))
 
 
 def clean_up_repo(repo_name):
@@ -294,7 +286,6 @@ def clean_up_repo(repo_name):
 if __name__ == "__main__":
     pypandoc.download_pandoc()
     #  Change repo_name to get issues from another repository
-    repo_name = "Project-MONAI/MONAILabel"
 
     clean_up_repo(repo_name)
 
