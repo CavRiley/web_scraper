@@ -10,14 +10,16 @@ import pandoc
 import re
 from pathlib import Path
 
-# To use this program, go into main and change the repo_name to the desired repository and its creator
+#  To use this program, go into main and change the repo_name to the desired repository and its creator
+#  To change word doc heading and company logo, go to the format_word_doc function and change the text and or picture name
 
+repo_name = "Project-MONAI/MONAILabel"
 
 # TODO Provide instructions for creating Auth token
 # log into github and go to this page https://github.com/settings/tokens
 # get token and type into auth_token.txt file
 # TODO Read in Auth token from txt file
-f = open("auth_token.txt")
+f = open("my_auth_token.txt")
 AUTH_TOKEN = f.readline()[:-1]
 
 # using an access token
@@ -29,9 +31,8 @@ auth = Auth.Token(AUTH_TOKEN)
 g = Github(auth=auth)
 
 
-def convert_gfm_to_docx(file_name: Path, output_file: Path):
-    # with open("markdown_test.md", "w") as file:
-    #     file.writelines(pypandoc.convert_text(text, "markdown", format="gfm"))
+#  Converts markdown files to docx files
+def convert_md_to_docx(file_name: Path, output_file: Path):
     pypandoc.convert_file(
         file_name.as_posix(), to="docx", outputfile=output_file.as_posix()
     )
@@ -106,6 +107,7 @@ def get_issues(repository):
     return issues_list
 
 
+#  Creates the markdown files for each issue
 def create_md_doc(issue_list, output_dir):
     md_dir = output_dir / "markdown"
     md_dir.mkdir(parents=True, exist_ok=True)
@@ -149,6 +151,7 @@ def create_md_doc(issue_list, output_dir):
             file.close()
 
 
+#  Converts folder of markdown documents into docx files and puts them into new directory
 def convert_md_folder(out_dir: Path):
     word_dir = out_dir / "docx"
     md_dir = out_dir / "markdown"
@@ -156,27 +159,27 @@ def convert_md_folder(out_dir: Path):
     for file in md_dir.glob("*.md"):
         assert file.is_file()
         out_file_name = word_dir / f"{file.stem}.docx"
-        convert_gfm_to_docx(file, out_file_name)
+        convert_md_to_docx(file, out_file_name)
         format_word_doc(out_file_name)
 
 
+#  Used to add heading to every issue's docx file
 def format_word_doc(file_name):
     document = docx.Document(file_name)
-
-    heading_para = document.add_heading("\tIssues in The " + " Repository", 0)
 
     # header_style = document.styles["Heading 1"]
     # header_font = header_style.font
     # header_font.size = Pt(18)
-    #
-    # section = document.sections[0]
-    # heading = section.header
-    # heading_para = heading.paragraphs[0]
-    # heading_para.style = header_style
-    # heading_para.text = "\tIssues in The " + " Repository"
+
+    section = document.sections[0]
+    heading = section.header
+    heading_para = heading.paragraphs[0]
+    heading_para.text = f"\tIssues in The {repo_name} Repository"
 
     logo = heading_para.add_run()
     logo.add_picture("gen_company_logo.png", width=Inches(1))
+
+    document.save(file_name)
 
 
 if __name__ == "__main__":
@@ -190,6 +193,5 @@ if __name__ == "__main__":
 
     create_md_doc(issues[:10], out_dir)
     convert_md_folder(out_dir)
-    # pypandoc.convert_file("markdown_test.md", to="docx", outputfile="test.docx")
 
     print("finished")
