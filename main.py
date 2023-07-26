@@ -10,10 +10,8 @@ import pandoc
 from pathlib import Path
 from datetime import datetime
 
-#  To use this program, go into main and change the repo_name to the desired repository and its creator
-#  To change word doc heading and company logo, change the repo name below
 
-repo_name = "Project-MONAI/MONAILabel"
+repo_name = "InsightSoftwareConsortium/ITK"
 
 # TODO Provide instructions for creating Auth token
 # log into github and go to this page https://github.com/settings/tokens
@@ -78,34 +76,20 @@ def get_issues(repository: str, state: str, updated=None):
     issues_list = []
     for issue in issues:
         if not issue.pull_request:
-            if issue.labels:
-                issue_dict = {
-                    "id_num": issue.number,
-                    "title": issue.title.replace("`", "'"),
-                    "body": issue.body,
-                    "user": issue.user.login,
-                    "assignees": issue.assignees,
-                    "published": issue.created_at,
-                    "labels": issue.labels[0].name,
-                    "milestone": issue.milestone,
-                    "comments": None,
-                    "url": issue.url.replace("api.", ""),
-                    "closed_at": issue.closed_at,
-                }
-            else:
-                issue_dict = {
-                    "id_num": issue.number,
-                    "title": issue.title.replace("`", "'"),
-                    "body": issue.body,
-                    "user": issue.user.login,
-                    "assignees": issue.assignees,
-                    "published": issue.created_at,
-                    "labels": None,
-                    "milestone": issue.milestone,
-                    "comments": None,
-                    "url": issue.url,
-                    "closed_at": issue.closed_at,
-                }
+            issue_dict = {
+                "id_num": issue.number,
+                "title": issue.title.replace("`", "'"),
+                "body": issue.body,
+                "user": issue.user.login,
+                "assignees": issue.assignees,
+                "published": issue.created_at,
+                "labels": [label.name for label in issue.labels if label is not None],
+                "milestone": issue.milestone,
+                "comments": None,
+                "url": issue.url.replace("api.", ""),
+                "closed_at": issue.closed_at,
+                "updated_at": issue.updated_at,
+            }
 
             if len(issue.assignees) < 1:
                 issue_dict["assignees"] = None
@@ -131,15 +115,6 @@ def create_md_doc(issue_list, output_dir):
             file.writelines(
                 pypandoc.convert_text(issue["body"], "markdown", format="gfm")
             )
-            file.write("\n\n### Additional Information: \n")
-            file.write("* Milestones: " + str(issue["milestone"]) + "\n")
-            file.write("* Assignees: " + str(issue["assignees"]) + "\n")
-            url = issue["url"].replace("api.", "")
-            file.write("* GitHub Url: " + url.replace("/repos", "") + "\n")
-            if issue["closed_at"] is not None:
-                file.write("* Closed At: " + str(issue["closed_at"]) + "\n")
-            else:
-                file.write("* Closed At: Issue Still Open!\n")
 
             file.write("\n\n### Comments: \n")
             if issue["comments"]:
@@ -151,20 +126,40 @@ def create_md_doc(issue_list, output_dir):
             else:
                 file.write("\nNo comments at the moment!\n")
 
+            file.write("\n\n### Additional Information: \n")
+            file.write("* Milestones: " + str(issue["milestone"]) + "\n")
+            file.write("* Assignees: " + str(issue["assignees"]) + "\n")
+            url = issue["url"].replace("api.", "")
+            file.write("* GitHub Url: " + url.replace("/repos", "") + "\n")
+            if issue["closed_at"] is not None:
+                file.write("* Closed At: " + str(issue["closed_at"]) + "\n")
+            else:
+                file.write("* Closed At: Issue Still Open!\n")
+
+            file.write(f"* Last Updated: {issue['updated_at']} ")
+
             file.write("<br/>\n")
             file.close()
 
 
 #  Converts folder of Markdown documents into docx files and puts them into new directory
-def convert_md_folder(out_dir: Path):
+def convert_md_folder(issues, out_dir: Path):
     word_dir = out_dir / "docx"
     md_dir = out_dir / "markdown"
     # state_word_dir = word_dir / state
     word_dir.mkdir(parents=True, exist_ok=True)
-    for file in md_dir.glob("*.md"):
-        assert file.is_file()
+
+    issues_to_convert = [(f'issue_{issue["id_num"]}.md', issue) for issue in issues]
+
+    for tup in issues_to_convert:
+        file, issue = tup
+        file = list(md_dir.glob(file))[0]
+        # file = md_dir / file
+        print(file)
+        print(issue)
         out_file_name = word_dir / f"{file.stem}.docx"
         convert_md_to_docx(file, out_file_name)
+        format_word_doc(file, issue)
 
 
 #  Adds the heading to every issue's docx file
@@ -185,7 +180,7 @@ def format_word_doc(file_name, issue):
     title_cell = table.rows[0].cells[0]
     title_para = title_cell.paragraphs[0]
     title_para.add_run(
-        f"\n\nIssue No. {issue['id_num']} in The {repo_name[repo_name.index('/') + 1:]} Repository"
+        f"\nIssue No. {issue['id_num']} in The {repo_name[repo_name.index('/') + 1:]} Repository"
     ).bold = True
     title_para.alignment = 1
 
@@ -242,13 +237,13 @@ def initialize_repo(repo_name):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     create_md_doc(issues[:10], out_dir)
-    convert_md_folder(out_dir)
+    convert_md_folder(issues, out_dir)
 
-    for i, file in enumerate(sorted(out_dir.rglob("*.docx"), reverse=True)):
-        # Now sorts directory with the highest issue numbers first
-        format_word_doc(file, issues[i])
+    # for i, file in enumerate(sorted(out_dir.rglob("*.docx"), reverse=True)):
+    #     # Now sorts directory with the highest issue numbers first
+    #     format_word_doc(file, issues[i])
 
-    f = open(repo_name[repo_name.index("/") + 1 :] + "_time_logs.csv", "w")
+    f = open(repo_name[repo_name.index("/") + 1 :] + "_time_logs.txt", "a")
     f.write(str(datetime.now()) + "\n")
     f.close()
 
@@ -259,10 +254,10 @@ def update_repo(repo_name):
     state = validate_state(state)
 
     #  Opens time log file and gets the last date this program was run
-    f = open(repo_name + "_time_logs.csv", "r+")
-    previous_date = datetime.strptime(
-        f.readlines()[-1].strip(), "%Y-%m-%d %H:%M:%S.%f"
-    )  #  the strip method is needed to stop a value error
+    with open(repo_name[repo_name.index("/") + 1 :] + "_time_logs.txt", "r") as f:
+        for line in f:
+            pass
+        previous_date = datetime.strptime(line.strip(), "%Y-%m-%d %H:%M:%S.%f")
 
     #  gets issues from GitHub: state can be "open", "closed" or "all" ... updated parameter will give us the
     #  issues that have been updated since the date passed to the function(usually the last date this program was ran)
@@ -270,10 +265,32 @@ def update_repo(repo_name):
 
     out_dir = Path(repo_name + "_issues")
 
-    create_md_doc(issues[:10], out_dir)
-    convert_md_folder(out_dir)
+    create_md_doc(issues, out_dir)
+    convert_md_folder(issues, out_dir)
 
-    f.write(str(datetime.now()))
+    # for i, issue in enumerate(issues):
+    #     # Now sorts directory with the highest issue numbers first
+    #     file_name = get_docx_file_name(issues[i], out_dir)
+    #     if file_name is not None:
+    #         format_word_doc(file_name, issues[i])
+    #     else:
+    #         print(f"File for issue {issue['id_num']} does not exist")
+
+    with open(repo_name[repo_name.index("/") + 1 :] + "_time_logs.txt", "a") as f:
+        f.write(str(datetime.now()) + "\n")
+
+
+def get_docx_file_name(issue, output_dir):
+    issue_num = issue["id_num"]
+
+    file_list = list(output_dir.rglob(f"*{issue_num}.docx"))
+
+    if len(file_list) > 1:
+        print(f"More than one file for {issue_num}")
+    elif len(file_list) == 0:
+        return None
+    else:
+        return file_list[0]
 
 
 def clean_up_repo(repo_name):
@@ -285,12 +302,11 @@ def clean_up_repo(repo_name):
 
 if __name__ == "__main__":
     pypandoc.download_pandoc()
-    #  Change repo_name to get issues from another repository
 
-    clean_up_repo(repo_name)
+    # clean_up_repo(repo_name)
+    #
+    # initialize_repo(repo_name)
 
-    initialize_repo(repo_name)
-
-    # update_repo(repo_name)
+    update_repo(repo_name)
 
     print("finished")
