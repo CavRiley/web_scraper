@@ -11,8 +11,15 @@ from pathlib import Path
 from datetime import datetime
 
 
-repo_name = "InsightSoftwareConsortium/ITK"
+repo_name = "Project-MONAI/MONAILabel"
 
+""" Instructions:
+    1. Rename repo_name to the desired repository in this format: author/repository
+    2. In main run the initialize_repository function which will create a directory under the authors name which will 
+    have a directory named after the repository. In the repository directory, there should be 2 directories, one for 
+    the markdown files and another for the docx files
+    3. To update, comment out the initialize function in main so the program can run the update_repository function
+"""
 # TODO Provide instructions for creating Auth token
 # log into github and go to this page https://github.com/settings/tokens
 # get token and type into auth_token.txt file
@@ -23,7 +30,7 @@ AUTH_TOKEN = f.readline()[:-1]
 # using an access token
 auth = Auth.Token(AUTH_TOKEN)
 
-# First create a GitHub instance:
+# Create a GitHub instance:
 
 # Public Web GitHub
 g = Github(auth=auth)
@@ -146,20 +153,22 @@ def create_md_doc(issue_list, output_dir):
 def convert_md_folder(issues, out_dir: Path):
     word_dir = out_dir / "docx"
     md_dir = out_dir / "markdown"
-    # state_word_dir = word_dir / state
+
     word_dir.mkdir(parents=True, exist_ok=True)
 
     issues_to_convert = [(f'issue_{issue["id_num"]}.md', issue) for issue in issues]
-
+    print(len(issues_to_convert))
     for tup in issues_to_convert:
-        file, issue = tup
-        file = list(md_dir.glob(file))[0]
+        file_string, issue = tup
+        file = list(md_dir.glob(file_string))[0]
+
         # file = md_dir / file
         print(file)
         print(issue)
         out_file_name = word_dir / f"{file.stem}.docx"
         convert_md_to_docx(file, out_file_name)
-        format_word_doc(file, issue)
+        print(out_file_name)
+        format_word_doc(out_file_name, issue)
 
 
 #  Adds the heading to every issue's docx file
@@ -169,13 +178,12 @@ def format_word_doc(file_name, issue):
     # adds header
     section = document.sections[0]
     heading = section.header
-    # heading_para = heading.paragraphs[0]
 
     table = heading.add_table(rows=2, cols=3, width=Inches(7.5))
     table.alignment = 1
     table.autofit = True
     table.allow_autofit = True
-    # table.rows[0].width = Inches(1.0)
+
     table.columns[2].width = Inches(1.5)
     title_cell = table.rows[0].cells[0]
     title_para = title_cell.paragraphs[0]
@@ -190,7 +198,7 @@ def format_word_doc(file_name, issue):
     issue_para.alignment = 1
 
     logo_cell = table.rows[0].cells[2]
-    # logo_cell.width = Inches(1.5)
+
     paragraph = logo_cell.paragraphs[0]
     logo = paragraph.add_run()
     logo.add_picture("BotImageLogo.png", width=Inches(1))  # Image can be changed here
@@ -237,7 +245,7 @@ def initialize_repo(repo_name):
     out_dir.mkdir(parents=True, exist_ok=True)
 
     create_md_doc(issues[:10], out_dir)
-    convert_md_folder(issues, out_dir)
+    convert_md_folder(issues[:10], out_dir)
 
     # for i, file in enumerate(sorted(out_dir.rglob("*.docx"), reverse=True)):
     #     # Now sorts directory with the highest issue numbers first
@@ -303,10 +311,10 @@ def clean_up_repo(repo_name):
 if __name__ == "__main__":
     pypandoc.download_pandoc()
 
-    # clean_up_repo(repo_name)
-    #
-    # initialize_repo(repo_name)
+    clean_up_repo(repo_name)
 
-    update_repo(repo_name)
+    initialize_repo(repo_name)
+
+    # update_repo(repo_name)
 
     print("finished")
