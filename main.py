@@ -15,14 +15,15 @@ repo_name = "Project-MONAI/MONAILabel"
 
 """ Instructions:
     1. Rename repo_name to the desired repository in this format: author/repository
-    2. In main run the initialize_repo function which will create a directory under the authors name which will 
+    2. Complete the TODOs below
+    3. In main run the initialize_repo function which will create a directory under the authors name which will 
     have a directory named after the repository. In the repository directory, there should be 2 directories, one for 
     the markdown files and another for the docx files
-    3. To update, comment out the initialize function in main so the program can run the update_repo function
+    4. To update, comment out the initialize function in main so the program can run the update_repo function
 """
 # TODO Provide instructions for creating Auth token
 # log into github and go to this page https://github.com/settings/tokens
-# get token and type into auth_token.txt file
+# get token and type into my_auth_token.txt file
 # TODO Read in Auth token from txt file
 f = open("my_auth_token.txt")
 AUTH_TOKEN = f.readline()[:-1]
