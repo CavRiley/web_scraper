@@ -15,10 +15,10 @@ repo_name = "Project-MONAI/MONAILabel"
 
 """ Instructions:
     1. Rename repo_name to the desired repository in this format: author/repository
-    2. In main run the initialize_repository function which will create a directory under the authors name which will 
+    2. In main run the initialize_repo function which will create a directory under the authors name which will 
     have a directory named after the repository. In the repository directory, there should be 2 directories, one for 
     the markdown files and another for the docx files
-    3. To update, comment out the initialize function in main so the program can run the update_repository function
+    3. To update, comment out the initialize function in main so the program can run the update_repo function
 """
 # TODO Provide instructions for creating Auth token
 # log into github and go to this page https://github.com/settings/tokens
@@ -105,7 +105,7 @@ def get_issues(repository: str, state: str, updated=None):
                 issue_dict["comments"] = get_comments(issue)
 
             issues_list.append(issue_dict)
-    print(len(issues_list))
+
     return issues_list
 
 
@@ -157,23 +157,18 @@ def convert_md_folder(issues, out_dir: Path):
     word_dir.mkdir(parents=True, exist_ok=True)
 
     issues_to_convert = [(f'issue_{issue["id_num"]}.md', issue) for issue in issues]
-    print(len(issues_to_convert))
+
     for tup in issues_to_convert:
         file_string, issue = tup
         file = list(md_dir.glob(file_string))[0]
 
-        # file = md_dir / file
-        print(file)
-        print(issue)
         out_file_name = word_dir / f"{file.stem}.docx"
         convert_md_to_docx(file, out_file_name)
-        print(out_file_name)
         format_word_doc(out_file_name, issue)
 
 
 #  Adds the heading to every issue's docx file
 def format_word_doc(file_name, issue):
-    print(file_name, issue["id_num"])
     document = docx.Document(file_name)
     # adds header
     section = document.sections[0]
@@ -217,7 +212,6 @@ def format_word_doc(file_name, issue):
     user_para.alignment = 1
 
     type_cell = table.rows[1].cells[2]
-    # type_cell.width = Inches(1.5)
     type_para = type_cell.paragraphs[0]
     type_para.add_run("Type: ").bold = True
     type_para.add_run(str(issue["labels"])).bold = False
@@ -236,7 +230,7 @@ def validate_state(state_str: str):
 
 #  Function used when gathering issues from a repository for the first time
 def initialize_repo(repo_name):
-    state = "open"
+    state = "all"
     state = validate_state(state)
 
     issues = get_issues(repo_name, state=state)
@@ -244,12 +238,8 @@ def initialize_repo(repo_name):
     out_dir = Path(repo_name + "_issues")
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    create_md_doc(issues[:10], out_dir)
-    convert_md_folder(issues[:10], out_dir)
-
-    # for i, file in enumerate(sorted(out_dir.rglob("*.docx"), reverse=True)):
-    #     # Now sorts directory with the highest issue numbers first
-    #     format_word_doc(file, issues[i])
+    create_md_doc(issues, out_dir)
+    convert_md_folder(issues, out_dir)
 
     f = open(repo_name[repo_name.index("/") + 1 :] + "_time_logs.txt", "a")
     f.write(str(datetime.now()) + "\n")
@@ -311,10 +301,6 @@ def clean_up_repo(repo_name):
 if __name__ == "__main__":
     pypandoc.download_pandoc()
 
-    clean_up_repo(repo_name)
-
     initialize_repo(repo_name)
 
     # update_repo(repo_name)
-
-    print("finished")
