@@ -77,7 +77,7 @@ def get_issues(repository: str, state: str, updated=None):
         issues = repo.get_issues(state=state, since=updated)
     else:
         issues = repo.get_issues(state=state)
-        print(f"{updated} is not a valid type or was not given!")
+        print(f"Updated parameter: '{updated}' is not a valid type or was not given!")
 
     # add since parameter feeding into text file
     issues_list = []
@@ -119,9 +119,12 @@ def create_md_doc(issue_list, output_dir):
 
         with open(output_name, "w") as file:
             file.write("\n### Issue:\n")
-            file.writelines(
-                pypandoc.convert_text(issue["body"], "markdown", format="gfm")
-            )
+            if issue["body"]:
+                file.writelines(
+                    pypandoc.convert_text(issue["body"], "markdown", format="gfm")
+                )
+            else:
+                file.write("No issue was provided!\n")
 
             file.write("\n\n### Comments: \n")
             if issue["comments"]:
