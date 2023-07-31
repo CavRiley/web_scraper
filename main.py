@@ -101,6 +101,10 @@ def get_issues(repository: str, state: str, updated=None):
 
             if len(issue.assignees) < 1:
                 issue_dict["assignees"] = None
+            else:
+                issue_dict["assignees"] = [
+                    assignee.login for assignee in issue.assignees
+                ]
 
             if issue.comments != 0:
                 issue_dict["comments"] = get_comments(issue)
@@ -234,7 +238,7 @@ def validate_state(state_str: str):
 
 #  Function used when gathering issues from a repository for the first time
 def initialize_repo(repo_name):
-    state = "all"
+    state = "open"
     state = validate_state(state)
 
     issues = get_issues(repo_name, state=state)
@@ -270,31 +274,10 @@ def update_repo(repo_name):
     create_md_doc(issues, out_dir)
     convert_md_folder(issues, out_dir)
 
-    # for i, issue in enumerate(issues):
-    #     # Now sorts directory with the highest issue numbers first
-    #     file_name = get_docx_file_name(issues[i], out_dir)
-    #     if file_name is not None:
-    #         format_word_doc(file_name, issues[i])
-    #     else:
-    #         print(f"File for issue {issue['id_num']} does not exist")
-
     with open(repo_name[repo_name.index("/") + 1 :] + "_time_logs.txt", "a") as f:
         f.write(str(datetime.now()) + "\n")
 
-
-def get_docx_file_name(issue, output_dir):
-    issue_num = issue["id_num"]
-
-    file_list = list(output_dir.rglob(f"*{issue_num}.docx"))
-
-    if len(file_list) > 1:
-        print(f"More than one file for {issue_num}")
-    elif len(file_list) == 0:
-        return None
-    else:
-        return file_list[0]
-
-
+# Clears out the repository directory may be useful if you want to start over with a new directory
 def clean_up_repo(repo_name):
     repo_dir = Path(repo_name + "_issues")
     num_files = len(list(repo_dir.rglob("*")))
