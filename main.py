@@ -9,12 +9,10 @@ import pypandoc
 import pandoc
 from pathlib import Path
 from datetime import datetime
-
-
-repo_name = "Project-MONAI/MONAILabel"
+import argparse
 
 """ Instructions:
-    1. Rename repo_name to the desired repository in this format: author/repository
+    1. When running from terminal, use this format for the desired repo, "author/repository"
     2. Complete the TODOs below
     3. In main run the initialize_repo function which will create a directory under the authors name which will 
     have a directory named after the repository. In the repository directory, there should be 2 directories, one for 
@@ -277,6 +275,7 @@ def update_repo(repo_name):
     with open(repo_name[repo_name.index("/") + 1 :] + "_time_logs.txt", "a") as f:
         f.write(str(datetime.now()) + "\n")
 
+
 # Clears out the repository directory may be useful if you want to start over with a new directory
 def clean_up_repo(repo_name):
     repo_dir = Path(repo_name + "_issues")
@@ -286,6 +285,21 @@ def clean_up_repo(repo_name):
 
 
 if __name__ == "__main__":
+    # Create the parser
+    parser = argparse.ArgumentParser()  # Add an argument
+    parser.add_argument(
+        "--repo",
+        "-r",
+        type=str,
+        required=True,
+        default="Project-MONAI/MONAILabel",
+        help="Enter Repository name in format: author/repository",
+    )
+
+    args = parser.parse_args()  # Execute the parse_args() method
+    print(args.repo)
+
+    repo_name = args.repo
     pypandoc.download_pandoc()
 
     initialize_repo(repo_name)
